@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融随机分析可视化实验室</title>
+    <!-- 引入 React 和 Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 关键修复：引入 prop-types，Recharts 依赖它 -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; }
+        .slider-container { margin-bottom: 15px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: #4b5563; margin-bottom: 5px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 添加错误边界处理，防止白屏无提示
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(error);
+            document.getElementById('root').innerHTML = '<div style="color:red; padding:20px;"><h3>应用启动出错</h3><p>' + message + '</p><p>请检查控制台获取更多细节。</p></div>';
+        };
+
+        const { useState, useEffect } = React;
+        
+        // 确保 Recharts 已加载
+        if (!window.Recharts) {
+            throw new Error("Recharts 库未能正确加载。");
+        }
+        
+        // 从全局对象中获取 Recharts 组件
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
+
+        // --- 辅助函数：正态分布随机数 (Box-Muller transform) ---
+        function generateGaussian() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+        }
+
+        // --- 辅助函数：Black-Scholes 公式 ---
+        function cumulativeDistribution(x) {
+            var t = 1 / (1 + .2316419 * Math.abs(x));
+            var d = .3989423 * Math.exp(-x * x / 2);
+            var prob = d * t * (.3193815 + t * (-.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            if (x > 0) prob = 1 - prob;
+            return prob;
+        }
+
+        function calculateBS(S, K, T, r, sigma, type = 'call') {
+            if (T <= 0) return Math.max(0, type === 'call' ? S - K : K - S);
+            const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+            const d2 = d1 - sigma * Math.sqrt(T);
+            
+            if (type === 'call') {
+                return S * cumulativeDistribution(d1) - K * Math.exp(-r * T) * cumulativeDistribution(d2);
+            } else {
+                return K * Math.exp(-r * T) * cumulativeDistribution(-d2) - S * cumulativeDistribution(-d1);
+            }
+        }
+
+        // --- 组件：主应用 ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('gbm'); // gbm, volatility, bs
+
+            return (
+                <div className="max-w-5xl mx-auto p-4">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">金融随机分析交互实验室</h1>
+                        <p className="text-gray-600">可视化理解几何布朗运动与期权定价</p>
+                    </header>
+
+                    <div className="flex justify-center space-x-4 mb-6">
+                        <TabButton id="gbm" label="1. 几何布朗运动 (GBM)" active={activeTab} onClick={setActiveTab} />
+                        <TabButton id="volatility" label="2. 波动率的影响" active={activeTab} onClick={setActiveTab} />
+                        <TabButton id="bs" label="3. Black-Scholes 定价" active={activeTab} onClick={setActiveTab} />
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-lg p-6 min-h-[500px]">
+                        {activeTab === 'gbm' && <GBMSimulator />}
+                        {activeTab === 'volatility' && <VolatilityComparison />}
+                        {activeTab === 'bs' && <BSCalculator />}
+                    </div>
+                </div>
+            );
+        };
+
+        const TabButton = ({ id, label, active, onClick }) => (
+            <button 
+                onClick={() => onClick(id)}
+                className={`px-6 py-2 rounded-full font-medium transition-all ${
+                    active === id 
+                    ? 'bg-blue-600 text-white shadow-md transform scale-105' 
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+            >
+                {label}
+            </button>
+        );
+
+        // --- 实验 1: GBM 模拟 ---
+        const GBMSimulator = () => {
+            const [params, setParams] = useState({ mu: 0.1, sigma: 0.2, T: 1, steps: 100, paths: 5, S0: 100 });
+            const [data, setData] = useState([]);
+
+            const runSimulation = () => {
+                const dt = params.T / params.steps;
+                const newData = [];
+                
+                // 生成多条路径
+                for (let p = 0; p < params.paths; p++) {
+                    let currentS = params.S0;
+                    let path = [{ time: 0, price: currentS, pathId: p }];
+                    
+                    for (let t = 1; t <= params.steps; t++) {
+                        const Z = generateGaussian();
+                        // GBM 公式: S(t+dt) = S(t) * exp( (mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z )
+                        const drift = (params.mu - 0.5 * params.sigma * params.sigma) * dt;
+                        const diffusion = params.sigma * Math.sqrt(dt) * Z;
+                        currentS = currentS * Math.exp(drift + diffusion);
+                        path.push({ time: Number((t * dt).toFixed(2)), price: currentS, pathId: p });
+                    }
+                    newData.push(path);
+                }
+
+                // 转换数据格式以适应 Recharts
+                const chartData = [];
+                for(let t=0; t<=params.steps; t++) {
+                    let point = { time: Number((t * dt).toFixed(2)) };
+                    newData.forEach((path, idx) => {
+                        point[`path${idx}`] = path[t].price;
+                    });
+                    chartData.push(point);
+                }
+                setData(chartData);
+            };
+
+            useEffect(() => { runSimulation(); }, []);
+
+            return (
+                <div className="flex flex-col md:flex-row gap-6">
+                    <div className="w-full md:w-1/3 space-y-4">
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <h3 className="font-bold text-blue-800 mb-2">公式：几何布朗运动</h3>
+                            <p className="font-mono text-sm text-blue-900 bg-white p-2 rounded">
+                                dSₜ = μSₜdt + σSₜdWₜ
+                            </p>
+                            <p className="text-xs text-blue-600 mt-2">
+                                价格变化 = 长期趋势(μ) + 随机震荡(σ)
+                            </p>
+                        </div>
+
+                        <ControlPanel params={params} setParams={setParams} onRun={runSimulation} />
+                    </div>
+
+                    <div className="w-full md:w-2/3 h-[400px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                <XAxis dataKey="time" label={{ value: '时间 (年)', position: 'insideBottomRight', offset: -5 }} />
+                                <YAxis domain={['auto', 'auto']} label={{ value: '价格', angle: -90, position: 'insideLeft' }} />
+                                <Tooltip />
+                                <Legend />
+                                {Array.from({ length: params.paths }).map((_, i) => (
+                                    <Line 
+                                        key={i} 
+                                        type="monotone" 
+                                        dataKey={`path${i}`} 
+                                        stroke={`hsl(${i * 60}, 70%, 50%)`} 
+                                        dot={false} 
+                                        strokeWidth={2}
+                                        name={`路径 ${i+1}`}
+                                        isAnimationActive={true}
+                                    />
+                                ))}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            );
+        };
+
+        const ControlPanel = ({ params, setParams, onRun }) => (
+            <div className="space-y-4">
+                <Slider label="初始价格 (S₀)" value={params.S0} min={50} max={200} step={10} 
+                    onChange={v => setParams({...params, S0: Number(v)})} />
+                <Slider label="漂移率 (μ, 趋势)" value={params.mu} min={-0.5} max={0.5} step={0.01} 
+                    onChange={v => setParams({...params, mu: Number(v)})} 
+                    desc={params.mu > 0 ? "上涨趋势" : "下跌趋势"} />
+                <Slider label="波动率 (σ, 抖动)" value={params.sigma} min={0.01} max={1.0} step={0.01} 
+                    onChange={v => setParams({...params, sigma: Number(v)})} 
+                    desc="控制价格乱跳的幅度" />
+                <Slider label="模拟时长 (T, 年)" value={params.T} min={0.1} max={5} step={0.1} 
+                    onChange={v => setParams({...params, T: Number(v)})} />
+                
+                <button onClick={onRun} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+                    重新生成路径
+                </button>
+            </div>
+        );
+
+        const Slider = ({ label, value, min, max, step, onChange, desc }) => (
+            <div className="slider-container">
+                <div className="slider-label">
+                    <span>{label}</span>
+                    <span>{value}</span>
+                </div>
+                <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(e.target.value)} />
+                {desc && <p className="text-xs text-gray-500 mt-1">{desc}</p>}
+            </div>
+        );
+
+        // --- 实验 2: 波动率对比 ---
+        const VolatilityComparison = () => {
+             const [data, setData] = useState([]);
+             
+             useEffect(() => {
+                 const steps = 100;
+                 const T = 1;
+                 const dt = T/steps;
+                 const S0 = 100;
+                 const mu = 0.1;
+                 const sigmaLow = 0.1;
+                 const sigmaHigh = 0.6;
+                 
+                 const chartData = [];
+                 let currentLow = S0;
+                 let currentHigh = S0;
+                 
+                 for(let t=0; t<=steps; t++) {
+                     const Z = generateGaussian();
+                     currentLow = currentLow * Math.exp((mu - 0.5*sigmaLow*sigmaLow)*dt + sigmaLow*Math.sqrt(dt)*Z);
+                     currentHigh = currentHigh * Math.exp((mu - 0.5*sigmaHigh*sigmaHigh)*dt + sigmaHigh*Math.sqrt(dt)*Z);
+                     
+                     chartData.push({
+                         time: (t*dt).toFixed(2),
+                         low: currentLow,
+                         high: currentHigh
+                     });
+                 }
+                 setData(chartData);
+             }, []);
+
+             return (
+                 <div className="flex flex-col gap-6">
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-gray-800">相同随机冲击下的波动率对比</h3>
+                        <p className="text-gray-600">假设两个平行宇宙，发生了同样的新闻事件（随机冲击 Z 相同），但市场恐慌程度不同（σ 不同）。</p>
+                    </div>
+                    <div className="h-[400px] w-full">
+                         <ResponsiveContainer>
+                             <LineChart data={data}>
+                                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                 <XAxis dataKey="time" label={{ value: '时间', position: 'insideBottomRight' }} />
+                                 <YAxis domain={['auto', 'auto']} />
+                                 <Tooltip />
+                                 <Legend />
+                                 <Line name="低波动率 (σ=0.1)" type="monotone" dataKey="low" stroke="#10b981" strokeWidth={3} dot={false} />
+                                 <Line name="高波动率 (σ=0.6)" type="monotone" dataKey="high" stroke="#ef4444" strokeWidth={2} dot={false} />
+                             </LineChart>
+                         </ResponsiveContainer>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="p-3 bg-green-50 text-green-800 rounded">
+                            <strong>绿色线条 (低波动)：</strong> 类似于大盘蓝筹股或债券。对新闻反应迟钝，走势平滑。
+                        </div>
+                        <div className="p-3 bg-red-50 text-red-800 rounded">
+                            <strong>红色线条 (高波动)：</strong> 类似于科技初创股或加密货币。同样的新闻会让它暴涨暴跌。注意看它的最终价格可能偏离 S0 非常远。
+                        </div>
+                    </div>
+                 </div>
+             )
+        }
+
+        // --- 实验 3: BS 计算器 ---
+        const BSCalculator = () => {
+            const [inputs, setInputs] = useState({ S: 100, K: 100, T: 1, r: 0.05, sigma: 0.2 });
+            
+            const callPrice = calculateBS(inputs.S, inputs.K, inputs.T, inputs.r, inputs.sigma, 'call');
+            const putPrice = calculateBS(inputs.S, inputs.K, inputs.T, inputs.r, inputs.sigma, 'put');
+
+            return (
+                <div className="flex flex-col md:flex-row gap-8">
+                    <div className="w-full md:w-1/2 space-y-5">
+                         <h3 className="font-bold text-gray-800 border-b pb-2">输入参数</h3>
+                         <div className="grid grid-cols-1 gap-4">
+                             <InputNumber label="当前股价 (S₀)" val={inputs.S} setter={v => setInputs({...inputs, S: Number(v)})} step={1} />
+                             <InputNumber label="执行价格 (K)" val={inputs.K} setter={v => setInputs({...inputs, K: Number(v)})} step={1} />
+                             <InputNumber label="到期时间 (T, 年)" val={inputs.T} setter={v => setInputs({...inputs, T: Number(v)})} step={0.1} />
+                             <InputNumber label="无风险利率 (r)" val={inputs.r} setter={v => setInputs({...inputs, r: Number(v)})} step={0.01} isPct />
+                             <InputNumber label="波动率 (σ)" val={inputs.sigma} setter={v => setInputs({...inputs, sigma: Number(v)})} step={0.01} isPct />
+                         </div>
+                    </div>
+
+                    <div className="w-full md:w-1/2 flex flex-col justify-center space-y-6">
+                        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl transform transition hover:scale-105">
+                            <h4 className="text-lg opacity-90 mb-1">看涨期权价格 (Call Price)</h4>
+                            <div className="text-4xl font-bold">${callPrice.toFixed(4)}</div>
+                            <p className="text-xs opacity-75 mt-2">
+                                含义：你有权以 ${inputs.K} 买入。如果 σ 增大，这个价格通常会变贵。
+                            </p>
+                        </div>
+
+                        <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 text-gray-700 shadow-sm">
+                            <h4 className="text-lg font-semibold mb-1">看跌期权价格 (Put Price)</h4>
+                            <div className="text-4xl font-bold">${putPrice.toFixed(4)}</div>
+                        </div>
+
+                        <div className="bg-yellow-50 p-4 rounded text-sm text-yellow-800 border border-yellow-200">
+                            <strong>观察提示：</strong> 试着把波动率 (σ) 调大。你会发现 Call 和 Put 都会变贵。这是因为波动率代表“可能性”，大波动意味着你有更大的机会赚大钱，而最大的损失仅限于期权费（有限），所以期权价值更高。
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const InputNumber = ({ label, val, setter, step, isPct }) => (
+            <div className="flex items-center justify-between bg-gray-50 p-3 rounded hover:bg-gray-100 transition">
+                <label className="font-medium text-gray-700">{label}</label>
+                <input 
+                    type="number" 
+                    value={val} 
+                    step={step} 
+                    onChange={e => setter(e.target.value)}
+                    className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
