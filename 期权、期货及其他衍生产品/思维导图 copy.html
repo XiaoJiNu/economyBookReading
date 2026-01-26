@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期权、期货及其他衍生产品 (第11版) - 交互式思维导图</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            overflow: hidden;
+        }
+        
+        #chart-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* 节点样式 */
+        .node rect {
+            stroke-width: 1.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            rx: 6; /* 圆角 */
+            ry: 6;
+            filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.1));
+        }
+
+        .node rect:hover {
+            filter: drop-shadow(4px 4px 6px rgba(0,0,0,0.2));
+            stroke: #333 !important;
+        }
+
+        .node text {
+            font: 12px "Microsoft YaHei", sans-serif;
+            cursor: pointer;
+            pointer-events: none; /* 让点击穿透到 rect */
+        }
+
+        .node--internal text {
+            font-weight: bold;
+            fill: #fff; /* 深色背景配白字 */
+        }
+
+        .node--leaf text {
+            fill: #333; /* 浅色背景配黑字 */
+        }
+
+        /* 连线样式 */
+        .link {
+            fill: none;
+            stroke: #bdc3c7;
+            stroke-width: 1.5px;
+            opacity: 0.8;
+        }
+
+        /* 控制面板 */
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            z-index: 100;
+            border: 1px solid #fff;
+            max-width: 320px;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-weight: 700;
+        }
+
+        p {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin: 0 0 15px 0;
+            line-height: 1.5;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s, transform 0.1s;
+            outline: none;
+            flex: 1;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        /* 颜色图例 */
+        .legend {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            color: #666;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h1>《期权、期货及其他衍生产品》</h1>
+    <p>第11版 | 深度详解版<br>包含公式与白话解释 (5级结构)</p>
+    <div class="btn-group">
+        <button id="btn-collapse" class="btn">全部收起</button>
+        <button id="btn-expand" class="btn">全部展开</button>
+    </div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#2c3e50"></div>全书</div>
+        <div class="legend-item"><div class="legend-color" style="background:#e67e22"></div>篇章</div>
+        <div class="legend-item"><div class="legend-color" style="background:#3498db"></div>章节</div>
+        <div class="legend-item"><div class="legend-color" style="background:#1abc9c"></div>知识点</div>
+        <div class="legend-item"><div class="legend-color" style="background:#9b59b6"></div>定义/公式</div>
+        <div class="legend-item"><div class="legend-color" style="background:#2ecc71"></div>白话解释</div>
+    </div>
+</div>
+
+<div id="chart-container"></div>
+
+<script>
+    // ---------------- 数据定义 (扩展至5级: 篇->章->节->定义->白话) ----------------
+    // 符号说明: S₀=现价, K=行权价, r=利率, T=时间, σ=波动率, F₀=远期价格
+    const treeData = {
+        "name": "期权、期货及衍生品 (11版)",
+        "children": [
+            {
+                "name": "第一部分: 期货与互换",
+                "children": [
+                    { 
+                        "name": "1. 介绍", 
+                        "children": [ 
+                            { 
+                                "name": "衍生品定义", 
+                                "children": [{
+                                    "name": "价值依赖于标的资产的合约", 
+                                    "children": [{"name": "白话: 就像赌球，球赛结果是'标的'，你的赌注价值取决于球赛结果"}]
+                                }] 
+                            },
+                            { 
+                                "name": "市场类型", 
+                                "children": [
+                                    { "name": "交易所 (Exchange)", "children": [{"name": "标准化合约，中央清算", "children": [{"name": "白话: 像淘宝官方店，规则统一，平台担保，不怕对方跑路"}]}] }, 
+                                    { "name": "场外市场 (OTC)", "children": [{"name": "非标准合约，双边协商", "children": [{"name": "白话: 像私下闲鱼交易，可以砍价定制，但要注意对方信用"}]}] }
+                                ] 
+                            },
+                            { 
+                                "name": "交易者类型", 
+                                "children": [
+                                    { "name": "对冲者", "children": [{"name": "规避风险", "children": [{"name": "白话: 像农民提前定好卖粮价格，怕未来降价"}]}] }, 
+                                    { "name": "投机者", "children": [{"name": "承担风险赌方向", "children": [{"name": "白话: 像赌徒，觉得价格会涨就买，赌对了赚大钱"}]}] }, 
+                                    { "name": "套利者", "children": [{"name": "赚取无风险利差", "children": [{"name": "白话: 像倒爷，这边10块买那边12块卖，稳赚不赔"}]}] }
+                                ] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "2. 期货市场机制", 
+                        "children": [ 
+                            { 
+                                "name": "多头与空头", 
+                                "children": [
+                                    { "name": "多头 (Long)", "children": [{"name": "承诺未来买入", "children": [{"name": "白话: 看涨的人，先定好买入价"}]}] },
+                                    { "name": "空头 (Short)", "children": [{"name": "承诺未来卖出", "children": [{"name": "白话: 看跌的人，先定好卖出价"}]}] }
+                                ] 
+                            },
+                            { 
+                                "name": "保证金制度", 
+                                "children": [
+                                    { "name": "初始保证金", "children": [{"name": "开仓必须缴纳的资金", "children": [{"name": "白话: 玩游戏先交押金，防止你亏了赖账"}]}] }, 
+                                    { "name": "每日盯市", "children": [{"name": "每天结算盈亏", "children": [{"name": "白话: 每天收盘算账，亏了马上补钱，赚了能提走"}]}] }
+                                ] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "3. 利用期货对冲", 
+                        "children": [ 
+                            { 
+                                "name": "基差 (Basis)", 
+                                "children": [{
+                                    "name": "基差 = 现货价格 - 期货价格", 
+                                    "children": [{"name": "白话: 现货和期货价格的差距，差距变化会影响对冲效果"}]
+                                }] 
+                            },
+                            { 
+                                "name": "最优对冲比率", 
+                                "children": [{
+                                    "name": "h* = ρ * (σ_S / σ_F)", 
+                                    "children": [{"name": "白话: 通过计算相关性，决定买几份期货来保护一份现货最稳妥"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "4. 利率", 
+                        "children": [ 
+                            { 
+                                "name": "复利频率", 
+                                "children": [{
+                                    "name": "连续复利: A = P * e^(RT)", 
+                                    "children": [{"name": "白话: 利滚利滚利，滚动的频率快到极限"}]
+                                }] 
+                            },
+                            { 
+                                "name": "零息利率", 
+                                "children": [{
+                                    "name": "不支付利息，到期还本", 
+                                    "children": [{"name": "白话: 现在打折买债券，中间不发钱，最后一把还你本金"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "5. 远期与期货价格", 
+                        "children": [ 
+                            { 
+                                "name": "无收益资产定价", 
+                                "children": [{
+                                    "name": "F₀ = S₀ * e^(rT)", 
+                                    "children": [{"name": "白话: 期货价 = 现货价 + 借钱买现货的利息成本"}]
+                                }] 
+                            },
+                            { 
+                                "name": "卖空机制", 
+                                "children": [{
+                                    "name": "借入资产卖出，未来买回", 
+                                    "children": [{"name": "白话: 没货也能卖，借别人的货先卖掉，等跌了再买回来还"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "7. 互换 (Swaps)", 
+                        "children": [ 
+                            { 
+                                "name": "利率互换 (IRS)", 
+                                "children": [{
+                                    "name": "固定利率 交换 浮动利率", 
+                                    "children": [{"name": "白话: 我嫌浮动利息不稳，你嫌固定利息太贵，咱们换换"}]
+                                }] 
+                            },
+                            { 
+                                "name": "比较优势", 
+                                "children": [{
+                                    "name": "利用信用差异降低总成本", 
+                                    "children": [{"name": "白话: 我在A市场借钱便宜，你在B市场便宜，各借各的再交换，双赢"}]
+                                }] 
+                            }
+                        ] 
+                    }
+                ]
+            },
+            {
+                "name": "第二部分: 期权基础",
+                "children": [
+                    { 
+                        "name": "9. 期权市场机制", 
+                        "children": [ 
+                            { 
+                                "name": "看涨期权 (Call)", 
+                                "children": [{
+                                    "name": "权利: 以K买入S", 
+                                    "children": [{"name": "白话: 付费获得一个权利，未来能按便宜价格买东西（涨了就赚）"}]
+                                }] 
+                            },
+                            { 
+                                "name": "看跌期权 (Put)", 
+                                "children": [{
+                                    "name": "权利: 以K卖出S", 
+                                    "children": [{"name": "白话: 付费获得一个权利，未来能按贵的价格卖东西（跌了就赚）"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "10. 股票期权性质", 
+                        "children": [ 
+                            { 
+                                "name": "P-C 平价公式", 
+                                "children": [{
+                                    "name": "c + K*e^(-rT) = p + S₀", 
+                                    "children": [{"name": "白话: 看涨期权和看跌期权像双胞胎，价格之间有严格的数学关系"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "12. 二叉树模型", 
+                        "children": [ 
+                            { 
+                                "name": "核心思想", 
+                                "children": [{
+                                    "name": "假设下一时刻只有涨/跌两种可能", 
+                                    "children": [{"name": "白话: 像走迷宫，每一步只能向上或向下，倒推现在的价值"}]
+                                }] 
+                            },
+                            { 
+                                "name": "风险中性定价", 
+                                "children": [{
+                                    "name": "不需知道真实上涨概率", 
+                                    "children": [{"name": "白话: 假设大家都不怕风险，用无风险利率就能算出期权价格"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "14. BSM模型", 
+                        "children": [ 
+                            { 
+                                "name": "BSM定价公式", 
+                                "children": [{
+                                    "name": "c = S₀N(d₁) - K*e^(-rT)*N(d₂)", 
+                                    "children": [{"name": "白话: 相当于（预期收到股票的价值 - 预期支付行权价的现值）"}]
+                                }] 
+                            },
+                            { 
+                                "name": "N(d1) 与 N(d2)", 
+                                "children": [{
+                                    "name": "正态分布累积概率", 
+                                    "children": [{"name": "白话: N(d2)约等于期权最终会被执行的概率"}]
+                                }] 
+                            }
+                        ] 
+                    }
+                ]
+            },
+            {
+                "name": "第三部分: 希腊值",
+                "children": [
+                    { 
+                        "name": "18. 希腊值 (Greeks)", 
+                        "children": [ 
+                            { 
+                                "name": "Delta (Δ)", 
+                                "children": [{
+                                    "name": "价格敏感度 (∂c/∂S)", 
+                                    "children": [{"name": "白话: 股票涨1块，期权涨几毛？Delta为0.5就是涨0.5元"}]
+                                }] 
+                            },
+                            { 
+                                "name": "Gamma (Γ)", 
+                                "children": [{
+                                    "name": "Delta的变化率 (∂²c/∂S²)", 
+                                    "children": [{"name": "白话: Delta稳不稳定？Gamma大说明Delta变动快，风险大"}]
+                                }] 
+                            },
+                            { 
+                                "name": "Vega (ν)", 
+                                "children": [{
+                                    "name": "波动率敏感度 (∂c/∂σ)", 
+                                    "children": [{"name": "白话: 市场越慌（波动大），期权越贵，Vega衡量贵多少"}]
+                                }] 
+                            },
+                            { 
+                                "name": "Theta (Θ)", 
+                                "children": [{
+                                    "name": "时间衰减 (∂c/∂t)", 
+                                    "children": [{"name": "白话: 随着到期日临近，期权每天自动贬值多少钱（耗损）"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "19. 波动率微笑", 
+                        "children": [ 
+                            { 
+                                "name": "隐含波动率", 
+                                "children": [{
+                                    "name": "反推公式得到的σ", 
+                                    "children": [{"name": "白话: 市场目前真实恐慌程度，而不是历史数据算的"}]
+                                }] 
+                            },
+                            { 
+                                "name": "微笑曲线", 
+                                "children": [{
+                                    "name": "虚值/实值期权波动率更高", 
+                                    "children": [{"name": "白话: 极端情况（暴涨暴跌）发生的概率比正态分布预测的要大"}]
+                                }] 
+                            }
+                        ] 
+                    }
+                ]
+            },
+            {
+                "name": "第四部分: 风险管理",
+                "children": [
+                    { 
+                        "name": "21. 风险价值 (VaR)", 
+                        "children": [ 
+                            { 
+                                "name": "定义", 
+                                "children": [{
+                                    "name": "P(损失 > VaR) = 1-X%", 
+                                    "children": [{"name": "白话: 有99%的把握，明天亏损不会超过这个数（VaR）"}]
+                                }] 
+                            },
+                            { 
+                                "name": "预期亏损 (ES)", 
+                                "children": [{
+                                    "name": "尾部损失的平均值", 
+                                    "children": [{"name": "白话: 万一那1%的倒霉事发生了，平均会亏多少钱？（比VaR更保守）"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "24. 信用衍生品", 
+                        "children": [ 
+                            { 
+                                "name": "CDS", 
+                                "children": [{
+                                    "name": "信用违约互换", 
+                                    "children": [{"name": "白话: 给债券买保险，如果公司倒闭还不起钱，保险公司赔给你"}]
+                                }] 
+                            },
+                            { 
+                                "name": "CDO", 
+                                "children": [{
+                                    "name": "债务担保证券", 
+                                    "children": [{"name": "白话: 把一堆贷款打包切片卖，有的优先还（安全），有的最后还（高风险）"}]
+                                }] 
+                            }
+                        ] 
+                    }
+                ]
+            },
+            {
+                "name": "第五部分: 其他话题",
+                "children": [
+                    { 
+                        "name": "25. 奇异期权", 
+                        "children": [ 
+                            { 
+                                "name": "障碍期权", 
+                                "children": [{
+                                    "name": "触碰价格才生效/失效", 
+                                    "children": [{"name": "白话: 像设了开关，股价碰到某个线，期权才突然出现或消失"}]
+                                }] 
+                            },
+                            { 
+                                "name": "亚式期权", 
+                                "children": [{
+                                    "name": "回报取决于平均价格", 
+                                    "children": [{"name": "白话: 不看最后那一秒的价格，看这一段时间的平均价，防止有人最后操纵价格"}]
+                                }] 
+                            }
+                        ] 
+                    },
+                    { 
+                        "name": "33. 实物期权", 
+                        "children": [ 
+                            { 
+                                "name": "投资决策", 
+                                "children": [{
+                                    "name": "项目中的期权思维", 
+                                    "children": [{"name": "白话: 做生意留后路（放弃期权）或留后手（扩张期权），这些灵活性值钱"}]
+                                }] 
+                            }
+                        ] 
+                    }
+                ]
+            }
+        ]
+    };
+
+    // ---------------- 初始化设置 ----------------
+    const margin = {top: 20, right: 120, bottom: 30, left: 120},
+          width = window.innerWidth,
+          height = window.innerHeight;
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+    const svg = d3.select("#chart-container").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .call(zoom)
+        .on("dblclick.zoom", null);
+
+    const g = svg.append("g");
+
+    let i = 0,
+        duration = 500,
+        root;
+
+    // 调整 nodeSize 以适应矩形框布局 [高度间距, 宽度间距]
+    // 宽度间距加大以适应长文本
+    const treeMap = d3.tree().nodeSize([45, 220]);
+
+    root = d3.hierarchy(treeData, function(d) { return d.children; });
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    // 初始居中
+    g.attr("transform", "translate(" + 150 + "," + height / 2 + ")");
+    svg.call(zoom.transform, d3.zoomIdentity.translate(150, height / 2));
+
+    // ---------------- 核心逻辑 ----------------
+
+    function collapse(d) {
+        if(d.children) {
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+        }
+    }
+
+    function expand(d) {
+        if (d._children) {
+            d.children = d._children;
+            d._children = null;
+        }
+        if (d.children) {
+            d.children.forEach(expand);
+        }
+    }
+
+    document.getElementById('btn-collapse').addEventListener('click', function() {
+        if (root.children) {
+            root.children.forEach(collapse);
+        }
+        update(root);
+        centerNode(root);
+    });
+
+    document.getElementById('btn-expand').addEventListener('click', function() {
+        expand(root);
+        update(root);
+        centerNode(root);
+    });
+
+    function centerNode(source) {
+        const t = d3.zoomTransform(svg.node());
+        let x = -source.y0;
+        let y = -source.x0;
+        x = x * t.k + width / 4; 
+        y = y * t.k + height / 2;
+        d3.select('svg').transition()
+            .duration(duration)
+            .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(t.k));
+    }
+
+    // 获取不同层级的背景颜色
+    function getNodeColor(depth) {
+        switch(depth) {
+            case 0: return "#2c3e50"; // 根：深蓝
+            case 1: return "#e67e22"; // 篇：橙色
+            case 2: return "#3498db"; // 章：蓝色
+            case 3: return "#1abc9c"; // 知识点：青色
+            case 4: return "#9b59b6"; // 定义：紫色
+            default: return "#2ecc71"; // 白话：绿色
+        }
+    }
+
+    // 获取不同层级的文字颜色
+    function getTextFill(depth) {
+        if (depth <= 4) return "#fff"; // 深色背景白字
+        return "#fff"; // 白话解释背景也是深色(绿色)，所以用白字
+    }
+
+    // 估算文字宽度的简单函数
+    function getTextWidth(text) {
+        let len = 0;
+        for (let i = 0; i < text.length; i++) {
+            if (text.charCodeAt(i) > 127 || text.charCodeAt(i) === 94) {
+                 len += 13; // 中文宽度
+            } else {
+                 len += 7;  // 英文宽度
+            }
+        }
+        return len + 24; // padding
+    }
+
+    function update(source) {
+        const treeData = treeMap(root);
+
+        const nodes = treeData.descendants(),
+              links = treeData.descendants().slice(1);
+
+        // 调整不同层级的水平间距
+        nodes.forEach(function(d){ d.y = d.depth * 220}); 
+
+        // ****************** 节点处理 ******************
+        const node = g.selectAll('g.node')
+            .data(nodes, function(d) { return d.id || (d.id = ++i); });
+
+        const nodeEnter = node.enter().append('g')
+            .attr('class', function(d) { 
+                return "node" + (d.children ? " node--internal" : " node--leaf"); 
+            })
+            .attr("transform", function(d) {
+                return "translate(" + source.y0 + "," + source.x0 + ")";
+            })
+            .on('click', click);
+
+        // 使用 Rect
+        nodeEnter.append('rect')
+            .attr('width', 1e-6)
+            .attr('height', 30)
+            .attr('x', 0)
+            .attr('y', -15)
+            .attr('rx', 6)
+            .attr('ry', 6)
+            .style("fill", function(d) { return d._children ? "#f1c40f" : getNodeColor(d.depth); })
+            .style("stroke", function(d) { return d3.rgb(getNodeColor(d.depth)).darker(0.5); });
+
+        // 文字
+        nodeEnter.append('text')
+            .attr("dy", ".35em")
+            .attr("x", function(d) { return 0; })
+            .attr("text-anchor", "middle")
+            .text(function(d) { return d.data.name; })
+            .style("fill-opacity", 1e-6);
+
+        // 合并更新
+        const nodeUpdate = node.merge(nodeEnter);
+
+        nodeUpdate.transition()
+            .duration(duration)
+            .attr("transform", function(d) { 
+                return "translate(" + d.y + "," + d.x + ")";
+            });
+
+        // 更新 Rect 尺寸和颜色
+        nodeUpdate.select('rect')
+            .attr('width', function(d) { return getTextWidth(d.data.name); })
+            .attr('height', 32)
+            .attr('x', function(d) { return -getTextWidth(d.data.name)/2; })
+            .attr('y', -16)
+            .style("fill", function(d) { 
+                return d._children ? "#f39c12" : getNodeColor(d.depth); 
+            })
+            .style("stroke", function(d) { return d.depth > 4 ? "#bdc3c7" : "none"; });
+
+        // 更新文字
+        nodeUpdate.select('text')
+            .style("fill-opacity", 1)
+            .style("fill", function(d) { return d._children ? "#fff" : getTextFill(d.depth); })
+            .attr("x", 0);
+
+        // 移除节点
+        const nodeExit = node.exit().transition()
+            .duration(duration)
+            .attr("transform", function(d) {
+                return "translate(" + source.y + "," + source.x + ")";
+            })
+            .remove();
+
+        nodeExit.select('rect').attr('width', 1e-6);
+        nodeExit.select('text').style('fill-opacity', 1e-6);
+
+        // ****************** 连线处理 ******************
+        const link = g.selectAll('path.link')
+            .data(links, function(d) { return d.id; });
+
+        const linkEnter = link.enter().insert('path', "g")
+            .attr("class", "link")
+            .attr('d', function(d){
+                const o = {x: source.x0, y: source.y0, data: source.data};
+                return diagonal(o, o);
+            });
+
+        const linkUpdate = link.merge(linkEnter);
+
+        linkUpdate.transition()
+            .duration(duration)
+            .attr('d', function(d){ return diagonal(d, d.parent) });
+
+        const linkExit = link.exit().transition()
+            .duration(duration)
+            .attr('d', function(d) {
+                const o = {x: source.x, y: source.y, data: source.data};
+                return diagonal(o, o)
+            })
+            .remove();
+
+        nodes.forEach(function(d){
+            d.x0 = d.x;
+            d.y0 = d.y;
+        });
+
+        function diagonal(s, d) {
+            const pW = getTextWidth(d.data.name) / 2; 
+            const cW = getTextWidth(s.data.name) / 2;
+
+            const sourceX = d.y + pW;
+            const sourceY = d.x;
+            const targetX = s.y - cW;
+            const targetY = s.x;
+
+            return `M ${sourceX} ${sourceY}
+                    C ${(sourceX + targetX) / 2} ${sourceY},
+                      ${(sourceX + targetX) / 2} ${targetY},
+                      ${targetX} ${targetY}`;
+        }
+
+        function click(event, d) {
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+            update(d);
+        }
+    }
+
+    // 初始渲染
+    update(root);
+</script>
+
+</body>
+</html>

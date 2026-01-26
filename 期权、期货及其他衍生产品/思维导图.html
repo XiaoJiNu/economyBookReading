@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期权、期货及其他衍生产品 (第11版) - 交互式思维导图</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            overflow: hidden;
+        }
+        
+        #chart-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* 节点样式 */
+        .node rect {
+            stroke-width: 1.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            rx: 6; /* 圆角 */
+            ry: 6;
+            filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.1));
+        }
+
+        .node rect:hover {
+            filter: drop-shadow(4px 4px 6px rgba(0,0,0,0.2));
+            stroke: #333 !important;
+        }
+
+        .node text {
+            font: 13px "Microsoft YaHei", sans-serif;
+            cursor: pointer;
+            pointer-events: none; /* 让点击穿透到 rect */
+        }
+
+        .node--internal text {
+            font-weight: bold;
+            fill: #fff; /* 深色背景配白字 */
+        }
+
+        .node--leaf text {
+            fill: #333; /* 浅色背景配黑字 */
+        }
+
+        /* 连线样式 */
+        .link {
+            fill: none;
+            stroke: #bdc3c7;
+            stroke-width: 1.5px;
+            opacity: 0.8;
+        }
+
+        /* 控制面板 */
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            z-index: 100;
+            border: 1px solid #fff;
+            max-width: 300px;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-weight: 700;
+        }
+
+        p {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin: 0 0 15px 0;
+            line-height: 1.5;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s, transform 0.1s;
+            outline: none;
+            flex: 1;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        /* 颜色图例 */
+        .legend {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            color: #666;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h1>《期权、期货及其他衍生产品》</h1>
+    <p>第11版 | John C. Hull<br>全书结构与核心知识点梳理</p>
+    <div class="btn-group">
+        <button id="btn-collapse" class="btn">全部收起</button>
+        <button id="btn-expand" class="btn">全部展开</button>
+    </div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#2c3e50"></div>全书</div>
+        <div class="legend-item"><div class="legend-color" style="background:#e67e22"></div>篇章(Parts)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#3498db"></div>章节(Chaps)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#ecf0f1; border:1px solid #ccc"></div>知识点</div>
+    </div>
+</div>
+
+<div id="chart-container"></div>
+
+<script>
+    // ---------------- 数据定义 (基于第11版目录修正) ----------------
+    const treeData = {
+        "name": "期权、期货及其他衍生产品 (11th)",
+        "children": [
+            {
+                "name": "第一部分: 期货与互换市场",
+                "children": [
+                    { "name": "1. 介绍", "children": [ { "name": "衍生品市场概览" }, { "name": "场外交易(OTC)与中央对手方" }, { "name": "对冲、投机与套利" } ] },
+                    { "name": "2. 期货市场机制", "children": [ { "name": "买入/卖出指令" }, { "name": "保证金与每日盯市" }, { "name": "交割与平仓" }, { "name": "CCP与双边清算" } ] },
+                    { "name": "3. 利用期货对冲", "children": [ { "name": "基差风险 (Basis Risk)" }, { "name": "最小方差对冲比率" }, { "name": "股指期货对冲" }, { "name": "滚动对冲 (Stack and Roll)" } ] },
+                    { "name": "4. 利率", "children": [ { "name": "利率种类 (国债/SOFR/Libor)" }, { "name": "复利频率" }, { "name": "零息利率与债券定价" }, { "name": "远期利率" }, { "name": "久期与凸性" } ] },
+                    { "name": "5. 远期与期货价格", "children": [ { "name": "投资资产 vs 消费资产" }, { "name": "卖空机制" }, { "name": "已知收益/收益率的定价" }, { "name": "持有成本 (Cost of Carry)" } ] },
+                    { "name": "6. 利率期货", "children": [ { "name": "国债期货" }, { "name": "欧洲美元/SOFR期货" }, { "name": "基于久期的对冲" } ] },
+                    { "name": "7. 互换 (Swaps)", "children": [ { "name": "利率互换 (IRS)" }, { "name": "比较优势理论" }, { "name": "互换定价与估值" }, { "name": "货币互换" }, { "name": "信用风险影响" } ] }
+                ]
+            },
+            {
+                "name": "第二部分: 期权基础",
+                "children": [
+                    { "name": "8. 证券化与2007危机", "children": [ { "name": "ABS与MBS" }, { "name": "瀑布结构 (Waterfall)" }, { "name": "次贷危机成因" } ] },
+                    { "name": "9. 期权市场机制", "children": [ { "name": "看涨(Call)与看跌(Put)" }, { "name": "期权规格与行权" }, { "name": "股息与拆股调整" } ] },
+                    { "name": "10. 股票期权性质", "children": [ { "name": "影响价格的6因素" }, { "name": "上下限 (Bounds)" }, { "name": "看涨-看跌平价 (P-C Parity)" }, { "name": "美式期权提前行权" } ] },
+                    { "name": "11. 交易策略", "children": [ { "name": "保本票据" }, { "name": "差价策略 (牛/熊/蝶/日历)" }, { "name": "组合策略 (跨式/宽跨式)" } ] },
+                    { "name": "12. 二叉树(一)", "children": [ { "name": "单步与多步二叉树" }, { "name": "风险中性定价原理" }, { "name": "美式期权估值" } ] },
+                    { "name": "13. 维纳过程与伊藤引理", "children": [ { "name": "马尔可夫性质" }, { "name": "布朗运动" }, { "name": "伊藤引理 (Ito's Lemma)" }, { "name": "对数正态分布" } ] },
+                    { "name": "14. BSM模型", "children": [ { "name": "BSM微分方程" }, { "name": "风险中性估值应用" }, { "name": "隐含波动率" }, { "name": "股息影响" } ] },
+                    { "name": "15. 员工股票期权", "children": [ { "name": "合约设计与会计处理" }, { "name": "行权行为与估值" }, { "name": "倒填日期丑闻" } ] }
+                ]
+            },
+            {
+                "name": "第三部分: 期权进阶与扩展",
+                "children": [
+                    { "name": "16. 股指与货币期权", "children": [ { "name": "支付连续红利资产" }, { "name": "股指期权定价" }, { "name": "货币期权定价" } ] },
+                    { "name": "17. 期货期权", "children": [ { "name": "布莱克模型 (Black's Model)" }, { "name": "期货期权 vs 现货期权" } ] },
+                    { "name": "18. 希腊值 (Greeks)", "children": [ { "name": "Delta (对冲比率)" }, { "name": "Theta (时间衰减)" }, { "name": "Gamma (曲率)" }, { "name": "Vega (波动率)" }, { "name": "Rho (利率)" }, { "name": "动态对冲实务" } ] },
+                    { "name": "19. 波动率微笑", "children": [ { "name": "外汇期权微笑" }, { "name": "股票期权偏斜 (Smirk)" }, { "name": "波动率期限结构" } ] }
+                ]
+            },
+            {
+                "name": "第四部分: 数值方法与风险管理",
+                "children": [
+                    { "name": "20. 基本数值方法", "children": [ { "name": "二叉树(二): 指数/外汇" }, { "name": "蒙特卡罗模拟" }, { "name": "有限差分法" } ] },
+                    { "name": "21. 风险价值 (VaR)", "children": [ { "name": "VaR vs 预期亏损(ES)" }, { "name": "历史模拟法" }, { "name": "模型构建法 (协方差)" }, { "name": "回测 (Back-testing)" } ] },
+                    { "name": "22. 波动率与相关性估算", "children": [ { "name": "EWMA模型" }, { "name": "GARCH(1,1)模型" }, { "name": "极大似然估计" } ] },
+                    { "name": "23. 信用风险", "children": [ { "name": "违约概率 (PD)" }, { "name": "违约损失率 (LGD)" }, { "name": "信用利差" }, { "name": "信用价值调整 (CVA)" } ] },
+                    { "name": "24. 信用衍生品", "children": [ { "name": "CDS定价与估值" }, { "name": "总收益互换" }, { "name": "CDO结构" } ] }
+                ]
+            },
+            {
+                "name": "第五部分: 高级定价模型",
+                "children": [
+                    { "name": "25. 奇异期权", "children": [ { "name": "障碍期权 (Barrier)" }, { "name": "亚式期权 (Asian)" }, { "name": "回望期权 (Lookback)" }, { "name": "复合期权 (Compound)" } ] },
+                    { "name": "26. 更多模型与数值", "children": [ { "name": "随机波动率模型" }, { "name": "IVF模型" }, { "name": "跳跃扩散模型" } ] },
+                    { "name": "27. 鞅与测度", "children": [ { "name": "市场价格风险" }, { "name": "等价鞅测度结果" }, { "name": "计价单位变换 (Numeraire)" } ] }
+                ]
+            },
+            {
+                "name": "第六部分: 利率衍生品",
+                "children": [
+                    { "name": "28. 标准市场模型", "children": [ { "name": "债券期权 (Black)" }, { "name": "利率上限/下限 (Caps/Floors)" }, { "name": "掉期期权 (Swaptions)" } ] },
+                    { "name": "29. 凸性/择时/Quanto", "children": [ { "name": "凸性调整 (Convexity)" }, { "name": "择时调整 (Timing)" }, { "name": "双币种期权 (Quanto)" } ] },
+                    { "name": "30. 短期利率均衡模型", "children": [ { "name": "Vasicek模型" }, { "name": "CIR模型" }, { "name": "参数校准" } ] },
+                    { "name": "31. 无套利模型", "children": [ { "name": "Ho-Lee模型" }, { "name": "Hull-White模型" }, { "name": "HJM模型" }, { "name": "LMM (Libor市场模型)" } ] }
+                ]
+            },
+            {
+                "name": "第七部分: 其他主题",
+                "children": [
+                    { "name": "32. 能源与商品", "children": [ { "name": "原油/天然气/电力" }, { "name": "均值回归过程" }, { "name": "便利收益率" } ] },
+                    { "name": "33. 实物期权", "children": [ { "name": "投资评估" }, { "name": "扩张/放弃期权" } ] },
+                    { "name": "34. 衍生品灾难与教训", "children": [ { "name": "风险限额" }, { "name": "模型风险" }, { "name": "流动性风险" } ] }
+                ]
+            }
+        ]
+    };
+
+    // ---------------- 初始化设置 ----------------
+    const margin = {top: 20, right: 120, bottom: 30, left: 120},
+          width = window.innerWidth,
+          height = window.innerHeight;
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+    const svg = d3.select("#chart-container").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .call(zoom)
+        .on("dblclick.zoom", null);
+
+    const g = svg.append("g");
+
+    let i = 0,
+        duration = 500,
+        root;
+
+    // 调整 nodeSize 以适应矩形框布局 [高度间距, 宽度间距]
+    // 矩形高度约 30-40px，宽度根据内容而定，但这里给一个基础间距
+    const treeMap = d3.tree().nodeSize([50, 240]);
+
+    root = d3.hierarchy(treeData, function(d) { return d.children; });
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    // 初始居中
+    g.attr("transform", "translate(" + 150 + "," + height / 2 + ")");
+    svg.call(zoom.transform, d3.zoomIdentity.translate(150, height / 2));
+
+    // ---------------- 核心逻辑 ----------------
+
+    function collapse(d) {
+        if(d.children) {
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+        }
+    }
+
+    function expand(d) {
+        if (d._children) {
+            d.children = d._children;
+            d._children = null;
+        }
+        if (d.children) {
+            d.children.forEach(expand);
+        }
+    }
+
+    document.getElementById('btn-collapse').addEventListener('click', function() {
+        if (root.children) {
+            root.children.forEach(collapse);
+        }
+        update(root);
+        centerNode(root);
+    });
+
+    document.getElementById('btn-expand').addEventListener('click', function() {
+        expand(root);
+        update(root);
+        centerNode(root);
+    });
+
+    function centerNode(source) {
+        const t = d3.zoomTransform(svg.node());
+        let x = -source.y0;
+        let y = -source.x0;
+        x = x * t.k + width / 4; // 偏左放置
+        y = y * t.k + height / 2;
+        d3.select('svg').transition()
+            .duration(duration)
+            .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(t.k));
+    }
+
+    // 获取不同层级的背景颜色
+    function getNodeColor(depth) {
+        switch(depth) {
+            case 0: return "#2c3e50"; // 根节点：深蓝
+            case 1: return "#e67e22"; // 第一层：橙色
+            case 2: return "#3498db"; // 第二层：蓝色
+            default: return "#ecf0f1"; // 叶子节点：浅灰
+        }
+    }
+
+    // 获取不同层级的文字颜色
+    function getTextFill(depth) {
+        if (depth <= 2) return "#fff"; // 深色背景白字
+        return "#2c3e50"; // 浅色背景深字
+    }
+
+    // 估算文字宽度的简单函数
+    function getTextWidth(text, font) {
+        // 简单估算：汉字约13px，英文约8px
+        let len = 0;
+        for (let i = 0; i < text.length; i++) {
+            if (text.charCodeAt(i) > 127 || text.charCodeAt(i) === 94) {
+                 len += 14; 
+            } else {
+                 len += 8;
+            }
+        }
+        return len + 20; // 加上 padding
+    }
+
+    function update(source) {
+        const treeData = treeMap(root);
+
+        const nodes = treeData.descendants(),
+              links = treeData.descendants().slice(1);
+
+        nodes.forEach(function(d){ d.y = d.depth * 220});
+
+        // ****************** 节点处理 ******************
+        const node = g.selectAll('g.node')
+            .data(nodes, function(d) { return d.id || (d.id = ++i); });
+
+        const nodeEnter = node.enter().append('g')
+            .attr('class', function(d) { 
+                return "node" + (d.children ? " node--internal" : " node--leaf"); 
+            })
+            .attr("transform", function(d) {
+                return "translate(" + source.y0 + "," + source.x0 + ")";
+            })
+            .on('click', click);
+
+        // 使用 Rect 代替 Circle
+        nodeEnter.append('rect')
+            .attr('width', 1e-6) // 初始宽度为0
+            .attr('height', 30)
+            .attr('x', 0)
+            .attr('y', -15)
+            .attr('rx', 6)
+            .attr('ry', 6)
+            .style("fill", function(d) { return d._children ? "#f1c40f" : getNodeColor(d.depth); }) // 如果折叠显示黄色，否则按层级
+            .style("stroke", function(d) { return d3.rgb(getNodeColor(d.depth)).darker(0.5); });
+
+        // 文字
+        nodeEnter.append('text')
+            .attr("dy", ".35em")
+            .attr("x", function(d) { return 0; }) // 初始居中，后面update会调整
+            .attr("text-anchor", "middle")
+            .text(function(d) { return d.data.name; })
+            .style("fill-opacity", 1e-6);
+
+        // 合并更新
+        const nodeUpdate = node.merge(nodeEnter);
+
+        nodeUpdate.transition()
+            .duration(duration)
+            .attr("transform", function(d) { 
+                return "translate(" + d.y + "," + d.x + ")";
+            });
+
+        // 更新 Rect 尺寸和颜色
+        nodeUpdate.select('rect')
+            .attr('width', function(d) { return getTextWidth(d.data.name); })
+            .attr('height', 32)
+            .attr('x', function(d) { return -getTextWidth(d.data.name)/2; }) // 居中
+            .attr('y', -16)
+            .style("fill", function(d) { 
+                // 如果有被折叠的子节点，显示黄色提示；否则显示层级颜色
+                return d._children ? "#f39c12" : getNodeColor(d.depth); 
+            })
+            .style("stroke", function(d) { return d.depth > 2 ? "#bdc3c7" : "none"; });
+
+        // 更新文字
+        nodeUpdate.select('text')
+            .style("fill-opacity", 1)
+            .style("fill", function(d) { return d._children ? "#fff" : getTextFill(d.depth); })
+            .attr("x", 0); // 始终在 rect 中心
+
+        // 移除节点
+        const nodeExit = node.exit().transition()
+            .duration(duration)
+            .attr("transform", function(d) {
+                return "translate(" + source.y + "," + source.x + ")";
+            })
+            .remove();
+
+        nodeExit.select('rect').attr('width', 1e-6);
+        nodeExit.select('text').style('fill-opacity', 1e-6);
+
+        // ****************** 连线处理 ******************
+        const link = g.selectAll('path.link')
+            .data(links, function(d) { return d.id; });
+
+        // 连线起始点计算：从父节点的右边缘到子节点的左边缘
+        // 这里简化为中心对中心，但为了美观，可以用贝塞尔曲线
+        const linkEnter = link.enter().insert('path', "g")
+            .attr("class", "link")
+            .attr('d', function(d){
+                const o = {x: source.x0, y: source.y0, data: source.data}; // 修复点：添加data属性
+                return diagonal(o, o);
+            });
+
+        const linkUpdate = link.merge(linkEnter);
+
+        linkUpdate.transition()
+            .duration(duration)
+            .attr('d', function(d){ return diagonal(d, d.parent) });
+
+        const linkExit = link.exit().transition()
+            .duration(duration)
+            .attr('d', function(d) {
+                const o = {x: source.x, y: source.y, data: source.data}; // 修复点：添加data属性
+                return diagonal(o, o)
+            })
+            .remove();
+
+        nodes.forEach(function(d){
+            d.x0 = d.x;
+            d.y0 = d.y;
+        });
+
+        // 修改贝塞尔曲线，使其连接到矩形边缘而不是中心点
+        // 这里做一个简单的优化：父节点(s)的右侧 -> 子节点(d)的左侧
+        function diagonal(s, d) {
+            // s是子节点的新位置，d是父节点的位置 (D3的逻辑有点反直觉，这里传入的是 node 和 node.parent)
+            // 实际上 linkUpdate 传的是 (d, d.parent)，即 s=子, d=父
+            
+            // 我们希望从父节点的右边连到子节点的左边
+            // 父节点宽度的一半
+            const pW = getTextWidth(d.data.name) / 2; 
+            // 子节点宽度的一半
+            const cW = getTextWidth(s.data.name) / 2;
+
+            const sourceX = d.y + pW; // 父节点右边缘
+            const sourceY = d.x;
+            const targetX = s.y - cW; // 子节点左边缘
+            const targetY = s.x;
+
+            return `M ${sourceX} ${sourceY}
+                    C ${(sourceX + targetX) / 2} ${sourceY},
+                      ${(sourceX + targetX) / 2} ${targetY},
+                      ${targetX} ${targetY}`;
+        }
+
+        function click(event, d) {
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+            update(d);
+        }
+    }
+
+    // 初始渲染
+    update(root);
+</script>
+
+</body>
+</html>
